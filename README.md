@@ -1,73 +1,105 @@
 # CloudSaver
 
-CloudSaver is a serverless FinOps control plane that surfaces idle AWS
-infrastructure, quantifies avoidable spend, and records remediation actions.
+[![Portfolio preview](https://github.com/thing64/CloudSaver/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/thing64/CloudSaver/actions/workflows/deploy-pages.yml)
+[![AWS SAM](https://img.shields.io/badge/AWS-SAM-FF9900?logo=amazonaws&logoColor=white)](backend/template.yaml)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](frontend/src/Dashboard.jsx)
+
+**A serverless FinOps control plane for finding idle AWS infrastructure,
+quantifying avoidable spend, and recording remediation actions.**
+
+[View the interactive portfolio demo →](https://thing64.github.io/CloudSaver/)
+
+> The public preview uses deterministic sample infrastructure and simulates
+> remediation in the browser. It is safe to explore and resets on refresh. The
+> repository also contains the complete API Gateway, Lambda, and DynamoDB
+> implementation used by a deployed environment.
+
+## What it demonstrates
+
+- A responsive FinOps dashboard built with React, Tailwind CSS, and Recharts
+- Cost aggregation by service, active-resource filtering, and search
+- Optimistic-feeling remediation UX with loading, success, and error states
+- A Node.js 20 Lambda router for `GET /resources` and
+  `POST /resources/terminate`
+- DynamoDB pagination, validation, structured errors, encryption, and
+  point-in-time recovery
+- Infrastructure as code with AWS SAM, API throttling, CORS, X-Ray, and
+  retained logs
+- Automated GitHub Pages builds for a zero-credential portfolio preview
 
 ## Architecture
 
-```text
-frontend/  React, Vite, Tailwind CSS, Recharts
-backend/   AWS SAM, API Gateway HTTP API, Lambda, DynamoDB
+```mermaid
+flowchart LR
+  Engineer[Engineer] --> Dashboard[React dashboard]
+  Dashboard -->|HTTPS| API[API Gateway HTTP API]
+  API --> Lambda[ScanResourcesFunction]
+  Lambda --> Table[(CostSavingsTable)]
+  Lambda --> Demo[Deterministic demo findings]
+
+  subgraph AWS SAM stack
+    API
+    Lambda
+    Table
+  end
 ```
 
-The browser reads findings from `GET /resources` and records a remediation
-through `POST /resources/terminate`. The demo flow is enabled with
-`?demo=true`; it returns deterministic sample findings without accessing
-DynamoDB.
+```text
+frontend/  React 19 · Vite · Tailwind CSS · Recharts · Lucide
+backend/   AWS SAM · API Gateway · Lambda · DynamoDB · AWS SDK v3
+```
 
 The Lambda intentionally has DynamoDB permissions only. The terminate endpoint
-updates CloudSaver's finding state and does not receive broad permissions to
-delete AWS infrastructure. Production resource deletion should be implemented
-as a separately approved workflow with service-specific, least-privilege roles.
+updates CloudSaver's finding state; it does not receive broad permissions to
+delete AWS infrastructure. Real destructive actions should use a separate
+approval workflow and service-specific least-privilege roles.
 
-## Local development
+## Run locally
 
-Requirements:
-
-- Node.js 20 or newer
-- AWS SAM CLI for local emulation and deployment
-
-Install and build the frontend:
+Requirements: Node.js 20 or newer and, for backend emulation, AWS SAM CLI.
 
 ```bash
-cd frontend
+git clone https://github.com/thing64/CloudSaver.git
+cd CloudSaver/frontend
 npm install
 cp .env.example .env.local
 npm run dev
-npm run build
 ```
 
-Set `VITE_API_BASE_URL` in `.env.local` to the `ApiUrl` output from the backend
-stack. `VITE_DEMO_MODE=true` keeps the API in deterministic demonstration mode.
+Set `VITE_API_BASE_URL` in `.env.local` to the backend stack's `ApiUrl` output.
+Set `VITE_STATIC_DEMO=true` to run the browser-only portfolio experience.
 
-Install and test the backend:
+Validate both applications:
 
 ```bash
-cd backend
-npm install
-npm test
+cd frontend && npm ci && npm run build
+cd ../backend && npm ci && npm test
 sam validate --lint --template template.yaml
 ```
 
-Run the API locally after installing the SAM CLI:
+## Deploy
+
+### Public portfolio preview
+
+The workflow in `.github/workflows/deploy-pages.yml` builds the safe static demo
+after every push to `main`.
+
+For a new repository, enable it once in **GitHub → Settings → Pages → Build and
+deployment → Source: GitHub Actions**. The published URL is:
+
+```text
+https://thing64.github.io/CloudSaver/
+```
+
+### AWS backend
 
 ```bash
 cd backend
 sam build
-sam local start-api
+sam deploy --guided \
+  --parameter-overrides AllowedOrigin=https://thing64.github.io
 ```
 
-## Deployment
-
-Deploy the backend with a restrictive frontend origin:
-
-```bash
-cd backend
-sam build
-sam deploy --guided --parameter-overrides AllowedOrigin=https://app.example.com
-```
-
-For a production deployment, set `VITE_DEMO_MODE=false`, configure
-`VITE_API_BASE_URL`, add an API Gateway authorizer, and place destructive cloud
-actions behind an approval workflow. The included table uses on-demand billing,
-server-side encryption, point-in-time recovery, and retained data resources.
+For production, set `VITE_STATIC_DEMO=false` and `VITE_DEMO_MODE=false`,
+configure `VITE_API_BASE_URL`, add an API Gateway authorizer, and put destructive
+cloud operations behind explicit approvals.

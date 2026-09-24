@@ -37,8 +37,12 @@ import {
   YAxis,
 } from "recharts";
 
+import { portfolioDemoResources } from "./portfolioDemoResources";
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const DEMO_MODE = (import.meta.env.VITE_DEMO_MODE ?? "true") === "true";
+const STATIC_PORTFOLIO_DEMO =
+  (import.meta.env.VITE_STATIC_DEMO ?? "false") === "true";
 
 const SERVICE_COLORS = {
   EC2: "#8b5cf6",
@@ -281,7 +285,7 @@ function Sidebar({ open, onClose }) {
               <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
             </span>
             <span className="text-[11px] font-medium text-emerald-300">
-              Monitoring active
+              {STATIC_PORTFOLIO_DEMO ? "Interactive demo" : "Monitoring active"}
             </span>
           </div>
         </div>
@@ -305,6 +309,16 @@ export default function Dashboard() {
     setError("");
 
     try {
+      if (STATIC_PORTFOLIO_DEMO) {
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        if (!signal?.aborted) {
+          setResources(
+            portfolioDemoResources.map((resource) => ({ ...resource })),
+          );
+        }
+        return;
+      }
+
       const response = await fetch(apiUrl("/resources"), {
         headers: { accept: "application/json" },
         signal,
@@ -399,24 +413,38 @@ export default function Dashboard() {
     setSuccessMessage("");
 
     try {
-      const response = await fetch(apiUrl("/resources/terminate"), {
-        method: "POST",
-        headers: {
-          accept: "application/json",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ resourceId: resource.resourceId }),
-      });
-      const payload = await response.json().catch(() => ({}));
+      let remediatedResource;
 
-      if (!response.ok) {
-        throw new Error(payload.message ?? "The resource could not be remediated.");
+      if (STATIC_PORTFOLIO_DEMO) {
+        await new Promise((resolve) => window.setTimeout(resolve, 550));
+        remediatedResource = {
+          ...resource,
+          status: "terminated",
+          terminatedAt: new Date().toISOString(),
+        };
+      } else {
+        const response = await fetch(apiUrl("/resources/terminate"), {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ resourceId: resource.resourceId }),
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            payload.message ?? "The resource could not be remediated.",
+          );
+        }
+        remediatedResource = payload.resource;
       }
 
       setResources((current) =>
         current.map((item) =>
           item.resourceId === resource.resourceId
-            ? { ...item, ...payload.resource, status: "terminated" }
+            ? { ...item, ...remediatedResource, status: "terminated" }
             : item,
         ),
       );
@@ -477,7 +505,13 @@ export default function Dashboard() {
                     error ? "bg-rose-400" : "bg-emerald-400",
                   )}
                 />
-                {error ? "Action required" : loading ? "Syncing" : "API connected"}
+                {error
+                  ? "Action required"
+                  : loading
+                    ? "Syncing"
+                    : STATIC_PORTFOLIO_DEMO
+                      ? "Portfolio demo"
+                      : "API connected"}
               </div>
               <button
                 aria-label="Notifications"
@@ -878,7 +912,9 @@ export default function Dashboard() {
                 </span>
                 <span className="hidden items-center gap-1.5 sm:flex">
                   <ShieldCheck className="size-3.5 text-emerald-400" />
-                  Actions are recorded for audit
+                  {STATIC_PORTFOLIO_DEMO
+                    ? "Demo actions reset on refresh"
+                    : "Actions are recorded for audit"}
                 </span>
               </footer>
             </section>
