@@ -9,10 +9,17 @@ export default defineConfig({
     target: "es2022",
     rolldownOptions: {
       output: {
-        manualChunks: {
-          charts: ["recharts"],
-          icons: ["lucide-react"],
-          react: ["react", "react-dom"],
+        manualChunks(id) {
+          if (id.includes("/node_modules/recharts/")) return "charts";
+          if (id.includes("/node_modules/lucide-react/")) return "icons";
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/node_modules/scheduler/")
+          ) {
+            return "react";
+          }
+          return undefined;
         },
       },
     },
