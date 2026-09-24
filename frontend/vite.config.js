@@ -7,6 +7,15 @@ export default defineConfig({
   build: {
     sourcemap: true,
     target: "es2022",
+    rolldownOptions: {
+      output: {
+        manualChunks: {
+          charts: ["recharts"],
+          icons: ["lucide-react"],
+          react: ["react", "react-dom"],
+        },
+      },
+    },
   },
   server: {
     host: "0.0.0.0",
