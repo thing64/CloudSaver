@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: CloudSaver serverless API for cloud cost optimization findings.
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: Browser origin allowed to call the CloudSaver HTTP API.
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+    MemorySize: 256
+    Timeout: 15
+    Tracing: Active
+    Environment:
+      Variables:
+        COST_SAVINGS_TABLE: !Ref CostSavingsTable
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+Resources:
+  CloudSaverApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - content-type
+          - authorization
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: >-
+          {"requestId":"$context.requestId","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationError":"$context.integrationErrorMessage"}
+      Tags:
+        Application: CloudSaver
+        ManagedBy: AWS-SAM
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RetentionInDays: 30
+
+  ScanResourcesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Lists CloudSaver findings and records approved remediations.
+      CodeUri: .
+      Handler: index.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CostSavingsTable
+      Events:
+        GetResources:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CloudSaverApi
+            Path: /resources
+            Method: GET
+            PayloadFormatVersion: "2.0"
+        TerminateResource:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CloudSaverApi
+            Path: /resources/terminate
+            Method: POST
+            PayloadFormatVersion: "2.0"
+      Tags:
+        Application: CloudSaver
+        ManagedBy: AWS-SAM
+
+  ScanResourcesFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ScanResourcesFunction}
+      RetentionInDays: 30
+
+  CostSavingsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ResourceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ResourceId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Application
+          Value: CloudSaver
+        - Key: ManagedBy
+          Value: AWS-SAM
+
+Outputs:
+  ApiUrl:
+    Description: CloudSaver HTTP API base URL.
+    Value: !Sub https://${CloudSaverApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  CostSavingsTableName:
+    Description: DynamoDB table that stores cost optimization findings.
+    Value: !Ref CostSavingsTable
+  ScanResourcesFunctionArn:
+    Description: CloudSaver Lambda function ARN.
+    Value: !GetAtt ScanResourcesFunction.Arn
