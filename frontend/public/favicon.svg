@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="cloudsaver-gradient" x1="8" y1="8" x2="56" y2="56">
+      <stop stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0f172a"/>
+  <path fill="url(#cloudsaver-gradient)" d="M46.5 46H18a11 11 0 0 1-1.3-21.9A16 16 0 0 1 47 28.8 8.7 8.7 0 0 1 46.5 46Zm-28-16a6 6 0 0 0-.5 12h28.5a4.7 4.7 0 1 0-1.9-9l-2.8 1.2.1-3A11 11 0 0 0 21 27l-.5 3.3-2-.3Z"/>
+</svg>
